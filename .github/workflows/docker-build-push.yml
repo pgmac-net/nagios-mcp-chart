@@ -123,6 +123,7 @@ jobs:
       actions: read
       contents: write
       security-events: write
+      pull-requests: write
 
   build-and-push:
     runs-on: self-hosted
