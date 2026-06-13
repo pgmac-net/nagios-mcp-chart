@@ -143,13 +143,6 @@ jobs:
           driver: remote
           endpoint: tcp://buildkitd.arc-runners.svc.cluster.local:1234
 
-      - name: Log in to registry
-        uses: docker/login-action@6d4b68b490aef8836e8fb5e50c2f9d7f3f26e0ac # v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
-          password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
-
       - name: Generate CalVer tag
         id: calver
         run: |
