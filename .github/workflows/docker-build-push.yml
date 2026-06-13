@@ -1,0 +1,208 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  REGISTRY: macro.int.pgmac.net:5000
+  IMAGE_NAME: nagios-mcp
+
+jobs:
+  security-scan:
+    name: Security Scanning with Trivy
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Run Trivy config scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-config-results.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+          ignore-unfixed: true
+
+      - name: Run Trivy config scan (JSON report)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'json'
+          output: 'trivy-config-results.json'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '0'
+          ignore-unfixed: true
+        if: success() || failure()
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs-results.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+          ignore-unfixed: true
+        if: success() || failure()
+
+      - name: Run Trivy filesystem scan (JSON report)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'json'
+          output: 'trivy-fs-results.json'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '0'
+          ignore-unfixed: true
+        if: success() || failure()
+
+      - name: Upload Trivy scan results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: trivy-security-reports
+          path: |
+            trivy-config-results.sarif
+            trivy-config-results.json
+            trivy-fs-results.sarif
+            trivy-fs-results.json
+          retention-days: 30
+        if: success() || failure()
+
+      - name: Upload config SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4
+        with:
+          sarif_file: 'trivy-config-results.sarif'
+          category: 'trivy-config'
+        continue-on-error: true
+        if: success() || failure()
+
+      - name: Upload filesystem SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4
+        with:
+          sarif_file: 'trivy-fs-results.sarif'
+          category: 'trivy-fs'
+        continue-on-error: true
+        if: success() || failure()
+
+      - name: Generate scan summary
+        run: |
+          echo "### Security Scan Results :shield:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Severity Threshold:** HIGH, CRITICAL" >> $GITHUB_STEP_SUMMARY
+        if: success() || failure()
+
+  sbom:
+    uses: pgmac-net/pg-actions/.github/workflows/sbom.yml@080f93f82efc68b80cccb895a7d4b9f456017374 # main
+    needs: security-scan
+    with:
+      runs-on: self-hosted
+    secrets:
+      DT_HOST: ${{ secrets.DT_HOST }}
+      DT_APIKEY: ${{ secrets.DT_APIKEY }}
+    permissions:
+      id-token: write
+      attestations: write
+      actions: read
+      contents: write
+      security-events: write
+
+  build-and-push:
+    runs-on: self-hosted
+    needs: security-scan
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Docker Buildx (remote BuildKit)
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+        with:
+          driver: remote
+          endpoint: tcp://buildkitd.arc-runners.svc.cluster.local:1234
+
+      - name: Log in to registry
+        uses: docker/login-action@6d4b68b490aef8836e8fb5e50c2f9d7f3f26e0ac # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
+          password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
+
+      - name: Generate CalVer tag
+        id: calver
+        run: |
+          DATE=$(date -u +"%Y.%m.%d")
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          BUILD_NUM=${{ github.run_number }}
+          VERSION="${DATE}.${BUILD_NUM}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "date=${DATE}" >> $GITHUB_OUTPUT
+          echo "build_date=${BUILD_DATE}" >> $GITHUB_OUTPUT
+
+      - name: Generate Docker metadata
+        id: meta
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.calver.outputs.version }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ steps.calver.outputs.date }}
+            type=sha
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+          build-args: |
+            BUILD_DATE=${{ steps.calver.outputs.build_date }}
+            BUILD_VERSION=${{ steps.calver.outputs.version }}
+            VCS_REF=${{ github.sha }}
+
+      - name: Output image details
+        env:
+          VERSION: ${{ steps.calver.outputs.version }}
+          BUILD_DATE: ${{ steps.calver.outputs.build_date }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          echo "### Docker Image Published :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** \`${REGISTRY}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${IMAGE_NAME}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Built:** \`${BUILD_DATE}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Revision:** \`${GIT_SHA}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Pull command:**" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${REGISTRY}/${IMAGE_NAME}:${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

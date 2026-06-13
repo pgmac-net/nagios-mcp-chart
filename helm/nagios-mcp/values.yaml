@@ -1,0 +1,48 @@
+replicaCount: 1
+
+image:
+  repository: macro.int.pgmac.net:5000/nagios-mcp
+  tag: latest
+  pullPolicy: Always
+
+config:
+  secretName: nagios-mcp-config
+  configKey: nagios_config.yaml
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: true
+  className: public
+  host: nagios-mcp.int.pgmac.net
+  tls:
+    secretName: nagios-mcp-tls-cert
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    forecastle.stakater.com/expose: "true"
+    forecastle.stakater.com/icon: https://avatars.githubusercontent.com/u/2225170?s=48&v=4
+    forecastle.stakater.com/appName: Nagios MCP
+    forecastle.stakater.com/group: Observability
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  capabilities:
+    drop:
+      - ALL
+
+labels:
+  int.pgmac.net/monitoring.nagios: "true"
+  int.pgmac.net/dns.host: nagios-mcp
+  int.pgmac.net/dns.nsupdate: "true"

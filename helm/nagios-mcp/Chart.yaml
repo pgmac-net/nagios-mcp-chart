@@ -1,0 +1,6 @@
+apiVersion: v2
+name: nagios-mcp
+description: Nagios MCP Server for pvek8s — SSE transport for Claude Code integration
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
