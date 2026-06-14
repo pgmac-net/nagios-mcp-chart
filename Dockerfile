@@ -41,4 +41,7 @@ USER 10001
 
 EXPOSE 8000
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python3 -c "import socket; socket.create_connection(('localhost', 8000), timeout=3).close()" || exit 1
+
 CMD ["nagios-mcp", "--config", "/config/nagios_config.yaml", "--transport", "sse", "--host", "0.0.0.0", "--port", "8000"]

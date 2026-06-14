@@ -25,6 +25,8 @@ spec:
         runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
         runAsUser: {{ .Values.securityContext.runAsUser }}
         runAsGroup: {{ .Values.securityContext.runAsGroup }}
+        seccompProfile:
+          type: {{ .Values.securityContext.seccompProfile.type }}
       volumes:
         - name: config
           secret:

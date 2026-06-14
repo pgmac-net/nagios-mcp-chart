@@ -1,0 +1,7 @@
+# KSV-0013: image tag defaults to "latest" in values.yaml but ArgoCD overrides it
+# with a CalVer tag (YYYY.MM.DD.N) at deploy time via pgk8s observability values.
+KSV-0013
+
+# KSV-0125: macro.int.pgmac.net:5000 is the trusted internal registry for this homelab.
+# Trivy has no way to know this registry is trusted without an explicit allow-list.
+KSV-0125
