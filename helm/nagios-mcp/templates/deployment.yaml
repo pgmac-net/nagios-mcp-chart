@@ -22,6 +22,8 @@ spec:
     spec:
       serviceAccountName: {{ .Release.Name }}
       securityContext:
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
         runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
         runAsUser: {{ .Values.securityContext.runAsUser }}
         runAsGroup: {{ .Values.securityContext.runAsGroup }}
@@ -37,6 +39,8 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
             capabilities:
               drop: {{ toJson .Values.securityContext.capabilities.drop }}
           ports:
