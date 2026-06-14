@@ -16,9 +16,12 @@ kubectl -n observability create secret generic nagios-mcp-config \
 nagios_url: https://nagios.int.pgmac.net
 nagios_user: <user>
 nagios_pass: <pass>
+ca_cert_path: 
 EOF
 )"
 ```
+
+Note: `ca_cert_path` is required. An empty value is acceptable.
 
 If Nagios uses a self-signed CA, add the cert as an additional key:
 
