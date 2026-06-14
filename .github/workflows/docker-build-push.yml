@@ -110,7 +110,7 @@ jobs:
         if: success() || failure()
 
   sbom:
-    uses: pgmac-net/pg-actions/.github/workflows/sbom.yml@080f93f82efc68b80cccb895a7d4b9f456017374 # main
+    uses: pgmac-net/pg-actions/.github/workflows/sbom.yml@8b09154e0a1a6f2d97b6310f4639a45d3c381ad4 # main
     needs: security-scan
     with:
       runs-on: self-hosted
