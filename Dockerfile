@@ -8,7 +8,23 @@ ENV UV_SYSTEM_PYTHON=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
 
-RUN uv pip install --no-cache nagios-mcp
+# Needed to install from a git ref; not present in python:3.12-slim.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Built from the pgmac-net fork rather than the PyPI release. The published
+# package advertises its SSE POST endpoint as "/messages" while mounting
+# "/messages", so Starlette 307-redirects every POST. That extra hop sits on
+# the initialize handshake, and since each GET /sse mints a new session, a
+# client can end up on a session that never completed initialize -- every
+# tool call then fails with JSON-RPC -32602 until the client reconnects.
+# The fork also caps mcp below 2.0, which dropped the decorator API this
+# server uses and breaks it at import time.
+# See https://github.com/pgmac-net/nagios-mcp/pull/2
+ARG NAGIOS_MCP_REF=1f4696f4e629ea31fae433126173e0249b81bf4c
+RUN uv pip install --no-cache \
+    "nagios-mcp @ git+https://github.com/pgmac-net/nagios-mcp.git@${NAGIOS_MCP_REF}"
 
 FROM python:3.12-slim
 
