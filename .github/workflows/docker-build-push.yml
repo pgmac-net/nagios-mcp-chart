@@ -15,7 +15,10 @@ env:
 jobs:
   security-scan:
     name: Security Scanning with Trivy
-    runs-on: self-hosted
+    # GitHub-hosted: Trivy config/fs scans only - no image scan, no homelab dependency.
+    # slim is sufficient - aquasecurity/trivy-action is a composite action that installs
+    # the Trivy binary, so it needs no Docker.
+    runs-on: ubuntu-slim
     permissions:
       contents: read
       security-events: write
@@ -126,6 +129,8 @@ jobs:
       pull-requests: write
 
   build-and-push:
+    # self-hosted: BuildKit over TCP to buildkitd.arc-runners.svc.cluster.local and pushes
+    # to macro.int.pgmac.net:5000, both reachable only from the homelab. See pgmac-net/homelabia#176.
     runs-on: self-hosted
     needs: security-scan
     permissions:
