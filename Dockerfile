@@ -22,7 +22,7 @@ RUN apt-get update \
 # The fork also caps mcp below 2.0, which dropped the decorator API this
 # server uses and breaks it at import time.
 # See https://github.com/pgmac-net/nagios-mcp/pull/2
-ARG NAGIOS_MCP_REF=1f4696f4e629ea31fae433126173e0249b81bf4c
+ARG NAGIOS_MCP_REF=ec924a39e3499285f7d212d7764fc2a2bf9bd8cb
 RUN uv pip install --no-cache \
     "nagios-mcp @ git+https://github.com/pgmac-net/nagios-mcp.git@${NAGIOS_MCP_REF}"
 
@@ -42,7 +42,7 @@ LABEL org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.vendor="pgmac.net" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.title="Nagios MCP Server" \
-      org.opencontainers.image.description="MCP server for Nagios monitoring, running in SSE transport mode"
+      org.opencontainers.image.description="MCP server for Nagios monitoring, running in stateless streamable HTTP mode (legacy SSE also served)"
 
 WORKDIR /app
 
@@ -60,4 +60,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python3 -c "import socket; socket.create_connection(('localhost', 8000), timeout=3).close()" || exit 1
 
-CMD ["nagios-mcp", "--config", "/config/nagios_config.yaml", "--transport", "sse", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["nagios-mcp", "--config", "/config/nagios_config.yaml", "--transport", "http", "--host", "0.0.0.0", "--port", "8000"]
